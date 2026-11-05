@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cek Status Transaksi & Pembayaran QRIS Otomatis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #2a1b6e 0%, #110d29 45%, #070510 100%);
+      min-height: 100vh;
+      color: #f3f4f6;
+      overflow-x: hidden;
+    }
+    .glass-card {
+      background: rgba(24, 20, 48, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 25px rgba(124, 93, 250, 0.08);
+    }
+    .title-gradient {
+      background: linear-gradient(90deg, #a78bfa 0%, #e879f9 50%, #fb7185 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .discount-card-active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.18) 0%, rgba(124, 93, 250, 0.18) 100%);
+      border-color: rgba(16, 185, 129, 0.6);
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+    }
+    .discount-card-disabled {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.3);
+      opacity: 0.75;
+      cursor: not-allowed;
+    }
+    .btn-glow {
+      background: linear-gradient(135deg, #7c5dfa 0%, #9333ea 100%);
+      box-shadow: 0 8px 25px -4px rgba(124, 93, 250, 0.55);
+    }
+    .btn-glow:hover {
+      background: linear-gradient(135deg, #6c4ce6 0%, #7e22ce 100%);
+      transform: translateY(-1px);
+    }
+  </style>
+</head>
+<body class="pb-16 px-4 pt-8 relative">
+
+  <!-- Dekorasi Cahaya Latar Belakang -->
+  <div class="fixed top-[-10%] left-[-10%] w-72 h-72 bg-purple-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+  <div class="fixed bottom-[-10%] right-[-10%] w-72 h-72 bg-pink-600/15 rounded-full blur-[100px] pointer-events-none"></div>
+
+  <div class="max-w-md mx-auto relative z-10">
+    <!-- Navigasi Tab -->
+    <div class="flex bg-[#120f26]/90 p-1.5 rounded-2xl mb-8 border border-white/10 shadow-xl backdrop-blur-md">
+      <button id="tabOrderBtn" onclick="switchTab('order')" class="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 bg-[#7c5dfa] text-white shadow-lg shadow-purple-600/30">
+        ⚡ Buat Transaksi
+      </button>
+      <button id="tabStatusBtn" onclick="switchTab('status')" class="flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 text-gray-400 hover:text-white">
+        🔍 Cek Status Transaksi
+      </button>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 1: BUAT TRANSAKSI BARU                 -->
+    <!-- ========================================== -->
+    <div id="sectionOrder" class="space-y-6">
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-3xl mb-1 shadow-lg shadow-purple-900/20">
+          💳
+        </div>
+        <h1 class="text-2xl font-extrabold title-gradient tracking-tight">Topup & Bayar Otomatis</h1>
+        <p class="text-gray-400 text-xs sm:text-sm px-4 leading-relaxed">
+          Bisa semua E-Wallet, M-Banking & Paylater (SPayLater, GoPay Later, Kredivo, Akulaku)
+        </p>
+      </div>
+
+      <div class="glass-card rounded-3xl p-6 space-y-5">
+        <!-- Pilih Layanan -->
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2.5 font-semibold">Pilih Layanan / E-Wallet</label>
+          <div class="grid grid-cols-3 gap-2.5">
+            <button type="button" onclick="selectProvider('GOPAY')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-[#7c5dfa] bg-[#7c5dfa]/25 text-white shadow-md shadow-purple-900/20">GOPAY</button>
+            <button type="button" onclick="selectProvider('DANA')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200">DANA</button>
+            <button type="button" onclick="selectProvider('OVO')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200">OVO</button>
+            <button type="button" onclick="selectProvider('SHOPEEPAY')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200">SHOPEEPAY</button>
+            <button type="button" onclick="selectProvider('LINKAJA')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200">LINKAJA</button>
+            <button type="button" onclick="selectProvider('LAINNYA')" class="provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200">LAINNYA</button>
+          </div>
+        </div>
+
+        <!-- Nomor Tujuan -->
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2 font-semibold">Nomor E-Wallet</label>
+          <input id="inputPhone" type="tel" placeholder="Masukkan nomor tujuan (08xxxx)" oninput="onPhoneInput()"
+            class="w-full bg-[#110e22] border border-white/15 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#7c5dfa] focus:ring-2 focus:ring-[#7c5dfa]/30 transition-all">
+        </div>
+
+        <!-- Nominal Topup -->
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2 font-semibold">Nominal Topup (Rp)</label>
+          <div class="grid grid-cols-2 gap-2.5 mb-3">
+            <button type="button" onclick="setNominal(50000)" class="py-2.5 bg-[#110e22] hover:bg-[#7c5dfa]/15 hover:border-[#7c5dfa] border border-white/10 rounded-xl text-sm font-semibold transition-all">Rp 50.000</button>
+            <button type="button" onclick="setNominal(100000)" class="py-2.5 bg-[#110e22] hover:bg-[#7c5dfa]/15 hover:border-[#7c5dfa] border border-white/10 rounded-xl text-sm font-semibold transition-all">Rp 100.000</button>
+            <button type="button" onclick="setNominal(200000)" class="py-2.5 bg-[#110e22] hover:bg-[#7c5dfa]/15 hover:border-[#7c5dfa] border border-white/10 rounded-xl text-sm font-semibold transition-all">Rp 200.000</button>
+            <button type="button" onclick="setNominal(500000)" class="py-2.5 bg-[#110e22] hover:bg-[#7c5dfa]/15 hover:border-[#7c5dfa] border border-white/10 rounded-xl text-sm font-semibold transition-all">Rp 500.000</button>
+          </div>
+          <input id="inputNominal" type="number" value="200000" oninput="updateSummary()"
+            class="w-full bg-[#110e22] border border-white/15 rounded-xl px-4 py-3 text-white font-semibold placeholder-gray-500 focus:outline-none focus:border-[#7c5dfa] focus:ring-2 focus:ring-[#7c5dfa]/30 transition-all">
+        </div>
+
+        <!-- MENU DISKON PEMBELIAN PERTAMA 25% -->
+        <div>
+          <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2 font-semibold">Promo & Voucher</label>
+          <div id="discountMenuCard" onclick="toggleFirstDiscount()" 
+            class="cursor-pointer select-none rounded-2xl p-3.5 border border-white/15 bg-[#110e22]/90 transition-all duration-300 flex items-center justify-between gap-3 hover:border-emerald-400/50">
+            <div class="flex items-center gap-3">
+              <div id="discountIconBox" class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-lg shrink-0">
+                🎁
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-sm font-bold text-white">Diskon Pembelian Pertama</span>
+                  <span id="discountBadgePill" class="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 uppercase">25% OFF</span>
+                </div>
+                <p class="text-xs text-gray-400 mt-0.5" id="discountSubtext">Klik untuk klaim potongan langsung 25%</p>
+              </div>
+            </div>
+            <div id="discountCheckbox" class="w-6 h-6 rounded-lg border-2 border-gray-500 flex items-center justify-center transition-all shrink-0">
+              <span id="discountCheckIcon" class="text-xs font-bold text-slate-950 hidden">✔</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ringkasan Kalkulasi Harga -->
+        <div class="bg-[#0e0b1d] border border-white/10 rounded-2xl p-4 space-y-2 text-xs">
+          <div class="flex justify-between text-gray-400">
+            <span>Nominal Topup</span>
+            <span id="summaryNominal" class="text-gray-200 font-semibold">Rp 200.000</span>
+          </div>
+          <div id="summaryDiscountRow" class="flex justify-between text-emerald-400 hidden">
+            <span>Diskon Pembelian Pertama (25%)</span>
+            <span id="summaryDiscount" class="font-bold">- Rp 50.000</span>
+          </div>
+          <div class="pt-2 border-t border-white/10 flex justify-between items-center text-sm">
+            <span class="text-gray-300 font-medium">Estimasi Bayar <span class="text-[10px] text-gray-500">(+Kode Unik)</span></span>
+            <span id="summaryTotal" class="font-extrabold text-emerald-400 text-base">Rp 200.000</span>
+          </div>
+        </div>
+
+        <button id="btnSubmitOrder" onclick="createTransaction()" 
+          class="w-full btn-glow transition-all duration-300 text-white font-bold py-3.5 rounded-xl">
+          Lanjut Pembayaran QRIS
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CEK STATUS TRANSAKSI                -->
+    <!-- ========================================== -->
+    <div id="sectionStatus" class="hidden space-y-6">
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-3xl mb-1 shadow-lg shadow-purple-900/20">
+          💳
+        </div>
+        <h1 class="text-2xl font-extrabold title-gradient tracking-tight">Cek Status Transaksi</h1>
+        <p class="text-gray-400 text-sm px-4 leading-relaxed">
+          Masukkan nomor e-wallet untuk melihat status transaksi Anda
+        </p>
+      </div>
+
+      <div class="glass-card rounded-3xl p-5 shadow-xl">
+        <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2.5 font-semibold">Nomor E-Wallet</label>
+        <div class="flex gap-2.5">
+          <input id="searchPhone" type="tel" placeholder="08xxxxxxxxxx" 
+            class="flex-1 bg-[#110e22] border border-white/15 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#7c5dfa]">
+          <button onclick="fetchTransactions()" 
+            class="btn-glow text-white font-semibold px-6 py-3 rounded-xl transition-all">
+            Cari
+          </button>
+        </div>
+      </div>
+
+      <div class="text-gray-300 text-sm font-medium px-1" id="txCountText">
+        Memuat transaksi...
+      </div>
+
+      <div id="txListContainer" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <!-- MODAL BARCODE QRIS -->
+  <div id="qrisModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+    <div class="glass-card max-w-sm w-full rounded-3xl p-6 text-center space-y-4 border border-purple-500/30 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <span class="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+          QRIS ALL PAYMENT & PAYLATER
+        </span>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-gray-400 hover:text-white text-lg font-bold flex items-center justify-center transition-all">&times;</button>
+      </div>
+
+      <div>
+        <p class="text-xs text-gray-400">Total Dibayar (Harus Sesuai Hingga 3 Digit Terakhir)</p>
+        <p id="modalTotalPay" class="text-2xl font-extrabold text-emerald-400 mt-1">Rp 0</p>
+        <span id="modalDiscountBadge" class="hidden inline-block mt-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          🎉 Hemat 25% (Diskon Pembelian Pertama Aktif)
+        </span>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl inline-block mx-auto shadow-xl ring-4 ring-purple-500/20">
+        <div id="qrcodeCanvas"></div>
+      </div>
+
+      <div class="flex items-center justify-center gap-2 text-xs text-amber-300 bg-amber-500/10 py-2.5 px-3 rounded-xl border border-amber-500/20">
+        <span class="animate-spin">🔄</span>
+        <span>Menunggu pembayaran otomatis terdeteksi...</span>
+      </div>
+
+      <div class="text-xs text-gray-300 space-y-1 bg-[#110e22] p-3.5 rounded-xl border border-white/10 text-left">
+        <p class="font-semibold text-purple-300">💡 Mendukung Paylater & Semua E-Wallet:</p>
+        <p class="leading-relaxed">Scan QRIS di atas melalui aplikasi <b>Shopee (SPayLater), Gojek (GoPay Later), Kredivo, Akulaku, DANA, OVO</b>, atau M-Banking. Nominal akan terisi otomatis.</p>
+      </div>
+
+      <button onclick="goToStatusFromModal()" class="w-full btn-glow text-white text-xs font-bold py-3.5 rounded-xl transition-all">
+        Lihat di Halaman Cek Status
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // GANTI DENGAN STRING QRIS STATIS DANA BISNIS / MERCHANT ANDA
+    const STATIC_QRIS_PAYLOAD = "00020101021126570011ID.DANA.WWW011893600915303640527302090364052730303UMI51440014ID.CO.QRIS.WWW0215ID10266251640370303UMI5204899953033605802ID5919Joki Kedia, Service6007Sumenep610569466630481BC";
+
+    let selectedProvider = 'GOPAY';
+    let pollingInterval = null;
+    let useFirstDiscount = false;
+    let isPromoEligible = true;
+    let promoCheckTimeout = null;
+
+    function formatRupiah(num) {
+      return 'Rp ' + Number(num).toLocaleString('id-ID');
+    }
+
+    function switchTab(tab) {
+      const orderSec = document.getElementById('sectionOrder');
+      const statusSec = document.getElementById('sectionStatus');
+      const orderBtn = document.getElementById('tabOrderBtn');
+      const statusBtn = document.getElementById('tabStatusBtn');
+
+      if (tab === 'order') {
+        orderSec.classList.remove('hidden');
+        statusSec.classList.add('hidden');
+        orderBtn.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 bg-[#7c5dfa] text-white shadow-lg shadow-purple-600/30";
+        statusBtn.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 text-gray-400 hover:text-white";
+      } else {
+        orderSec.classList.add('hidden');
+        statusSec.classList.remove('hidden');
+        statusBtn.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 bg-[#7c5dfa] text-white shadow-lg shadow-purple-600/30";
+        orderBtn.className = "flex-1 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 text-gray-400 hover:text-white";
+        fetchTransactions();
+      }
+    }
+
+    function selectProvider(name) {
+      selectedProvider = name;
+      document.querySelectorAll('.provider-btn').forEach(btn => {
+        btn.className = btn.textContent === name
+          ? "provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-[#7c5dfa] bg-[#7c5dfa]/25 text-white shadow-md shadow-purple-900/20"
+          : "provider-btn py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 border border-white/10 bg-[#141129]/80 text-gray-400 hover:border-white/25 hover:text-gray-200";
+      });
+    }
+
+    function setNominal(val) {
+      document.getElementById('inputNominal').value = val;
+      updateSummary();
+    }
+
+    function onPhoneInput() {
+      if (promoCheckTimeout) clearTimeout(promoCheckTimeout);
+      const cleanPhone = document.getElementById('inputPhone').value.replace(/[^0-9]/g, '');
+
+      if (cleanPhone.length < 8) {
+        setPromoEligibilityUI(true, false);
+        return;
+      }
+
+      promoCheckTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(`api.php?action=check_promo&phone=${encodeURIComponent(cleanPhone)}`);
+          const result = await res.json();
+          if (result.status === 'success') {
+            setPromoEligibilityUI(result.eligible, true);
+          }
+        } catch (e) {}
+      }, 300);
+    }
+
+    function setPromoEligibilityUI(eligible, checked) {
+      isPromoEligible = eligible;
+      const card = document.getElementById('discountMenuCard');
+      const checkbox = document.getElementById('discountCheckbox');
+      const checkIcon = document.getElementById('discountCheckIcon');
+      const subtext = document.getElementById('discountSubtext');
+      const badgePill = document.getElementById('discountBadgePill');
+      const iconBox = document.getElementById('discountIconBox');
+
+      if (!eligible) {
+        useFirstDiscount = false;
+        card.classList.remove('discount-card-active');
+        card.classList.add('discount-card-disabled');
+        checkbox.className = "w-6 h-6 rounded-lg border-2 border-red-500/40 bg-red-500/10 flex items-center justify-center transition-all shrink-0";
+        checkIcon.textContent = "✕";
+        checkIcon.className = "text-xs font-bold text-red-400";
+        badgePill.textContent = "SUDAH DIKLAIM";
+        badgePill.className = "text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 uppercase";
+        iconBox.className = "w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-lg shrink-0";
+        subtext.textContent = "Nomor ini sudah pernah bertransaksi sebelumnya";
+        subtext.className = "text-xs text-red-300/90 mt-0.5";
+        updateSummary();
+        return;
+      }
+
+      card.classList.remove('discount-card-disabled');
+      badgePill.textContent = "25% OFF";
+      badgePill.className = "text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500 text-slate-950 uppercase";
+      iconBox.className = "w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-lg shrink-0";
+      checkIcon.textContent = "✔";
+
+      if (useFirstDiscount) {
+        card.classList.add('discount-card-active');
+        checkbox.className = "w-6 h-6 rounded-lg bg-emerald-400 border-2 border-emerald-400 flex items-center justify-center transition-all shrink-0";
+        checkIcon.className = "text-xs font-bold text-slate-950";
+        subtext.textContent = "Voucher 25% aktif! Potongan otomatis diterapkan";
+        subtext.className = "text-xs text-emerald-300 font-medium mt-0.5";
+      } else {
+        card.classList.remove('discount-card-active');
+        checkbox.className = "w-6 h-6 rounded-lg border-2 border-gray-500 flex items-center justify-center transition-all shrink-0";
+        checkIcon.className = "text-xs font-bold text-slate-950 hidden";
+        subtext.textContent = checked
+          ? "Nomor baru! Klik untuk klaim diskon pembelian pertama 25%"
+          : "Klik untuk klaim potongan langsung 25%";
+        subtext.className = "text-xs text-gray-400 mt-0.5";
+      }
+      updateSummary();
+    }
+
+    function toggleFirstDiscount() {
+      if (!isPromoEligible) {
+        alert('Maaf, Diskon Pembelian Pertama 25% hanya berlaku satu kali untuk nomor E-Wallet yang belum pernah bertransaksi.');
+        return;
+      }
+      useFirstDiscount = !useFirstDiscount;
+      setPromoEligibilityUI(true, false);
+    }
+
+    function updateSummary() {
+      const rawNominal = parseInt(document.getElementById('inputNominal').value) || 0;
+      const discountAmount = (useFirstDiscount && isPromoEligible) ? Math.round(rawNominal * 0.25) : 0;
+      const finalEstimate = Math.max(0, rawNominal - discountAmount);
+
+      document.getElementById('summaryNominal').textContent = formatRupiah(rawNominal);
+      const discountRow = document.getElementById('summaryDiscountRow');
+
+      if (useFirstDiscount && isPromoEligible && rawNominal > 0) {
+        discountRow.classList.remove('hidden');
+        document.getElementById('summaryDiscount').textContent = '- ' + formatRupiah(discountAmount);
+      } else {
+        discountRow.classList.add('hidden');
+      }
+
+      document.getElementById('summaryTotal').textContent = formatRupiah(finalEstimate);
+    }
+
+    // Konversi QRIS Statis ke Dinamis (CRC16-CCITT)
+    function crc16CCITT(str) {
+      let crc = 0xFFFF;
+      for (let i = 0; i < str.length; i++) {
+        crc ^= str.charCodeAt(i) << 8;
+        for (let j = 0; j < 8; j++) {
+          crc = (crc & 0x8000) !== 0 ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+        }
+      }
+      return crc.toString(16).toUpperCase().padStart(4, '0');
+    }
+
+    function generateDynamicQRIS(staticQris, amount) {
+      try {
+        let qrisWithoutCrc = staticQris.slice(0, -4);
+        let step1 = qrisWithoutCrc.replace("010211", "010212");
+        let splitParts = step1.split("5802ID");
+        if (splitParts.length !== 2) return staticQris;
+        let amountStr = String(amount);
+        let tag54 = "54" + amountStr.length.toString().padStart(2, '0') + amountStr;
+        let payloadToHash = splitParts[0] + tag54 + "5802ID" + splitParts[1];
+        return payloadToHash + crc16CCITT(payloadToHash);
+      } catch (e) {
+        return staticQris;
+      }
+    }
+
+    async function createTransaction() {
+      const phone = document.getElementById('inputPhone').value.trim();
+      const nominal = parseInt(document.getElementById('inputNominal').value);
+
+      if (!phone || isNaN(nominal) || nominal < 1000) {
+        alert('Masukkan nomor E-Wallet dan nominal yang valid!');
+        return;
+      }
+
+      const btn = document.getElementById('btnSubmitOrder');
+      btn.disabled = true;
+      btn.textContent = 'Membuat Barcode...';
+
+      try {
+        const res = await fetch('api.php?action=create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider: selectedProvider,
+            phone,
+            nominal,
+            useFirstDiscount: useFirstDiscount && isPromoEligible
+          })
+        });
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          document.getElementById('searchPhone').value = result.data.phone;
+          // Setelah transaksi pertama berhasil dibuat, nomor ini otomatis tercatat pernah bertransaksi
+          setPromoEligibilityUI(false, true);
+          showQrisModal(result.data);
+        } else {
+          if (result.code === 'PROMO_NOT_ELIGIBLE') {
+            setPromoEligibilityUI(false, true);
+          }
+          alert(result.message || 'Gagal membuat transaksi');
+        }
+      } catch (err) {
+        alert('Gagal terhubung ke server api.php');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Lanjut Pembayaran QRIS';
+      }
+    }
+
+    function showQrisModal(tx) {
+      document.getElementById('modalTotalPay').textContent = formatRupiah(tx.totalPaid);
+      const discountBadge = document.getElementById('modalDiscountBadge');
+      if (tx.discountApplied) {
+        discountBadge.classList.remove('hidden');
+      } else {
+        discountBadge.classList.add('hidden');
+      }
+
+      const qrContainer = document.getElementById('qrcodeCanvas');
+      qrContainer.innerHTML = '';
+
+      const dynamicPayload = generateDynamicQRIS(STATIC_QRIS_PAYLOAD, tx.totalPaid);
+      new QRCode(qrContainer, {
+        text: dynamicPayload,
+        width: 200,
+        height: 200
+      });
+
+      const modal = document.getElementById('qrisModal');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // Mulai Auto-Polling Cek Status setiap 3 detik
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`api.php?action=check&id=${tx.id}`);
+          const result = await res.json();
+          if (result.status === 'success' && result.data.status === 'PROCESSING') {
+            clearInterval(pollingInterval);
+            closeModal();
+            switchTab('status');
+          }
+        } catch (e) {}
+      }, 3000);
+    }
+
+    function closeModal() {
+      if (pollingInterval) clearInterval(pollingInterval);
+      const modal = document.getElementById('qrisModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function goToStatusFromModal() {
+      closeModal();
+      switchTab('status');
+    }
+
+    async function fetchTransactions() {
+      const phone = document.getElementById('searchPhone').value.trim();
+      const container = document.getElementById('txListContainer');
+
+      try {
+        const res = await fetch(`api.php?action=list&phone=${encodeURIComponent(phone)}`);
+        const result = await res.json();
+        const list = result.data || [];
+
+        document.getElementById('txCountText').textContent = `Ditemukan ${list.length} transaksi`;
+        container.innerHTML = '';
+
+        list.forEach(tx => {
+          const isProcessing = tx.status === 'PROCESSING';
+          const statusBadge = isProcessing
+            ? `<span class="text-amber-400 font-semibold text-xs sm:text-sm flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-full border border-amber-500/20">🔄 Dalam Proses</span>`
+            : `<button onclick='showQrisModal(${JSON.stringify(tx)})' class="text-blue-400 hover:underline font-semibold text-xs sm:text-sm flex items-center gap-1.5 bg-blue-500/10 px-2.5 py-1 rounded-full border border-blue-500/20">⏳ Menunggu Pembayaran</button>`;
+
+          const discountRowHtml = tx.discountApplied
+            ? `<div class="flex justify-between text-emerald-400">
+                 <span>Diskon Pembelian Pertama (25%)</span>
+                 <span class="font-bold">- ${formatRupiah(tx.discountAmount || Math.round(tx.nominal * 0.25))}</span>
+               </div>`
+            : '';
+
+          const card = document.createElement('div');
+          card.className = "glass-card rounded-2xl p-5 space-y-3.5 shadow-lg transition-all hover:border-purple-500/30";
+          card.innerHTML = `
+            <div class="flex justify-between items-center">
+              <div class="flex items-center gap-2">
+                <span class="bg-emerald-950/90 text-emerald-400 border border-emerald-500/30 text-xs font-bold px-3 py-1 rounded-lg uppercase tracking-wide">
+                  ${tx.provider}
+                </span>
+                <span class="text-gray-400 text-xs font-semibold">#${tx.id}</span>
+                ${tx.discountApplied ? `<span class="text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full">PROMO 25%</span>` : ''}
+              </div>
+              ${statusBadge}
+            </div>
+
+            <div class="space-y-2 pt-1 text-sm">
+              <div class="flex justify-between">
+                <span class="text-gray-400">Nominal Topup</span>
+                <span class="font-bold text-white">${formatRupiah(tx.nominal)}</span>
+              </div>
+              ${discountRowHtml}
+              <div class="flex justify-between">
+                <span class="text-gray-400">Total Dibayar</span>
+                <span class="font-extrabold text-emerald-400">${formatRupiah(tx.totalPaid)}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-gray-400">Tanggal</span>
+                <span class="text-gray-200">${tx.date}</span>
+              </div>
+            </div>
+
+            <div class="pt-3 border-t border-white/10 flex justify-between items-center">
+              <span class="text-emerald-400 text-xs font-medium">Estimasi selesai dalam 24 jam</span>
+              ${!isProcessing ? `<button onclick='showQrisModal(${JSON.stringify(tx)})' class="text-xs bg-[#7c5dfa]/25 text-purple-200 border border-[#7c5dfa]/50 px-3.5 py-1.5 rounded-lg hover:bg-[#7c5dfa] hover:text-white font-semibold transition-all">Bayar QRIS</button>` : ''}
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        document.getElementById('txCountText').textContent = 'Gagal memuat data dari api.php';
+      }
+    }
+  </script>
+</body>
+</html>
