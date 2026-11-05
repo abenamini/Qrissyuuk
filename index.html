@@ -241,6 +241,245 @@
     let isPromoEligible = true;
     let promoCheckTimeout = null;
 
+    const LOCAL_STORAGE_KEY = 'qris_transactions_db_v1';
+
+    // =========================================================================
+    // SISTEM DATABASE CADANGAN OTOMATIS (AGAR BERFUNGSI DI GITHUB PAGES)
+    // =========================================================================
+    function getLocalTransactions() {
+      const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) {
+        const initialData = [
+          {
+            id: 210,
+            provider: 'GOPAY',
+            phone: '081234567891',
+            nominal: 200000,
+            totalPaid: 105068,
+            date: '10 Mar 2026, 19.06',
+            status: 'PROCESSING',
+            createdAt: Math.floor(Date.now() / 1000) - 600
+          },
+          {
+            id: 209,
+            provider: 'GOPAY',
+            phone: '081234567891',
+            nominal: 200000,
+            totalPaid: 200142,
+            date: '10 Mar 2026, 18.45',
+            status: 'PENDING',
+            createdAt: Math.floor(Date.now() / 1000) - 1800
+          }
+        ];
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialData));
+        return initialData;
+      }
+      try {
+        return JSON.parse(raw) || [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveLocalTransactions(list) {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function formatDateIndoJS() {
+      const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+      const now = new Date();
+      const d = now.getDate();
+      const m = months[now.getMonth()];
+      const y = now.getFullYear();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      return `${d} ${m} ${y}, ${hh}.${mm}`;
+    }
+
+    function handleLocalApi(action, params = {}, body = {}) {
+      const txList = getLocalTransactions();
+
+      if (action === 'check_promo') {
+        const phone = String(params.phone || '').replace(/[^0-9]/g, '');
+        const eligible = !txList.some(tx => tx.phone === phone);
+        return { status: 'success', eligible };
+      }
+
+      if (action === 'list') {
+        const phone = String(params.phone || '').trim();
+        const filtered = phone ? txList.filter(tx => tx.phone.includes(phone)) : txList;
+        return { status: 'success', data: filtered };
+      }
+
+      if (action === 'check') {
+        const id = parseInt(params.id || 0);
+        const found = txList.find(tx => parseInt(tx.id) === id);
+        return found
+          ? { status: 'success', data: found }
+          : { status: 'error', message: 'Transaksi tidak ditemukan' };
+      }
+
+      if (action === 'create') {
+        const provider = String(body.provider || 'GOPAY').toUpperCase();
+        const phone = String(body.phone || '').replace(/[^0-9]/g, '');
+        const nominal = parseInt(body.nominal || 0);
+        const claimDiscount = Boolean(body.useFirstDiscount);
+
+        if (!phone || nominal < 1000) {
+          return { status: 'error', message: 'Nomor E-Wallet atau nominal tidak valid' };
+        }
+
+        if (claimDiscount && txList.some(tx => tx.phone === phone)) {
+          return {
+            status: 'error',
+            code: 'PROMO_NOT_ELIGIBLE',
+            message: 'Maaf, Diskon Pembelian Pertama 25% hanya berlaku 1x untuk nomor E-Wallet yang belum pernah bertransaksi.'
+          };
+        }
+
+        let maxId = 208;
+        const activeTotals = [];
+        txList.forEach(tx => {
+          if (tx.id > maxId) maxId = tx.id;
+          if (tx.status === 'PENDING') activeTotals.push(parseInt(tx.totalPaid));
+        });
+
+        const discountAmount = claimDiscount ? Math.round(nominal * 0.25) : 0;
+        const baseAmount = nominal - discountAmount;
+
+        let uniqueCode = Math.floor(Math.random() * (899 - 101 + 1)) + 101;
+        let totalPaid = baseAmount + uniqueCode;
+        while (activeTotals.includes(totalPaid)) {
+          uniqueCode = Math.floor(Math.random() * (899 - 101 + 1)) + 101;
+          totalPaid = baseAmount + uniqueCode;
+        }
+
+        const newTx = {
+          id: maxId + 1,
+          provider,
+          phone,
+          nominal,
+          discountApplied: claimDiscount,
+          discountAmount,
+          totalPaid,
+          date: formatDateIndoJS(),
+          status: 'PENDING',
+          createdAt: Math.floor(Date.now() / 1000)
+        };
+
+        txList.unshift(newTx);
+        saveLocalTransactions(txList);
+        return { status: 'success', data: newTx };
+      }
+
+      return { status: 'error', message: 'Action tidak dikenali' };
+    }
+
+    async function requestApi(action, params = {}, postBody = null) {
+      try {
+        const query = new URLSearchParams({ action, ...params }).toString();
+        const options = postBody
+          ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(postBody) }
+          : { method: 'GET' };
+
+        const res = await fetch(`api.php?${query}`, options);
+        if (!res.ok) throw new Error('HTTP status ' + res.status);
+        const text = await res.text();
+        // Jika server mengembalikan kode mentah <?php (seperti di GitHub Pages), lempar ke fallback lokal
+        if (text.trim().startsWith('<?php')) throw new Error('Static server detected');
+        returntext-base">Rp 200.000</span>
+          </div>
+        </div>
+
+        <button id="btnSubmitOrder" onclick="createTransaction()" 
+          class="w-full btn-glow transition-all duration-300 text-white font-bold py-3.5 rounded-xl">
+          Lanjut Pembayaran QRIS
+        </button>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 2: CEK STATUS TRANSAKSI                -->
+    <!-- ========================================== -->
+    <div id="sectionStatus" class="hidden space-y-6">
+      <div class="text-center space-y-2">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-500/30 text-3xl mb-1 shadow-lg shadow-purple-900/20">
+          💳
+        </div>
+        <h1 class="text-2xl font-extrabold title-gradient tracking-tight">Cek Status Transaksi</h1>
+        <p class="text-gray-400 text-sm px-4 leading-relaxed">
+          Masukkan nomor e-wallet untuk melihat status transaksi Anda
+        </p>
+      </div>
+
+      <div class="glass-card rounded-3xl p-5 shadow-xl">
+        <label class="block text-xs uppercase tracking-wider text-gray-300 mb-2.5 font-semibold">Nomor E-Wallet</label>
+        <div class="flex gap-2.5">
+          <input id="searchPhone" type="tel" placeholder="08xxxxxxxxxx" 
+            class="flex-1 bg-[#110e22] border border-white/15 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-[#7c5dfa]">
+          <button onclick="fetchTransactions()" 
+            class="btn-glow text-white font-semibold px-6 py-3 rounded-xl transition-all">
+            Cari
+          </button>
+        </div>
+      </div>
+
+      <div class="text-gray-300 text-sm font-medium px-1" id="txCountText">
+        Memuat transaksi...
+      </div>
+
+      <div id="txListContainer" class="space-y-4"></div>
+    </div>
+  </div>
+
+  <!-- MODAL BARCODE QRIS -->
+  <div id="qrisModal" class="fixed inset-0 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4 z-50">
+    <div class="glass-card max-w-sm w-full rounded-3xl p-6 text-center space-y-4 border border-purple-500/30 shadow-2xl">
+      <div class="flex justify-between items-center">
+        <span class="text-[11px] font-bold px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30">
+          QRIS ALL PAYMENT & PAYLATER
+        </span>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-full bg-white/5 hover:bg-white/15 text-gray-400 hover:text-white text-lg font-bold flex items-center justify-center transition-all">&times;</button>
+      </div>
+
+      <div>
+        <p class="text-xs text-gray-400">Total Dibayar (Harus Sesuai Hingga 3 Digit Terakhir)</p>
+        <p id="modalTotalPay" class="text-2xl font-extrabold text-emerald-400 mt-1">Rp 0</p>
+        <span id="modalDiscountBadge" class="hidden inline-block mt-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+          🎉 Hemat 25% (Diskon Pembelian Pertama Aktif)
+        </span>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl inline-block mx-auto shadow-xl ring-4 ring-purple-500/20">
+        <div id="qrcodeCanvas"></div>
+      </div>
+
+      <div class="flex items-center justify-center gap-2 text-xs text-amber-300 bg-amber-500/10 py-2.5 px-3 rounded-xl border border-amber-500/20">
+        <span class="animate-spin">🔄</span>
+        <span>Menunggu pembayaran otomatis terdeteksi...</span>
+      </div>
+
+      <div class="text-xs text-gray-300 space-y-1 bg-[#110e22] p-3.5 rounded-xl border border-white/10 text-left">
+        <p class="font-semibold text-purple-300">💡 Mendukung Paylater & Semua E-Wallet:</p>
+        <p class="leading-relaxed">Scan QRIS di atas melalui aplikasi <b>Shopee (SPayLater), Gojek (GoPay Later), Kredivo, Akulaku, DANA, OVO</b>, atau M-Banking. Nominal akan terisi otomatis.</p>
+      </div>
+
+      <button onclick="goToStatusFromModal()" class="w-full btn-glow text-white text-xs font-bold py-3.5 rounded-xl transition-all">
+        Lihat di Halaman Cek Status
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // GANTI DENGAN STRING QRIS STATIS DANA BISNIS / MERCHANT ANDA
+    const STATIC_QRIS_PAYLOAD = "00020101021126570011ID.DANA.WWW011893600915303640527302090364052730303UMI51440014ID.CO.QRIS.WWW0215ID10266251640370303UMI5204899953033605802ID5919Joki Kedia, Service6007Sumenep610569466630481BC";
+
+    let selectedProvider = 'GOPAY';
+    let pollingInterval = null;
+    let useFirstDiscount = false;
+    let isPromoEligible = true;
+    let promoCheckTimeout = null;
+
     function formatRupiah(num) {
       return 'Rp ' + Number(num).toLocaleString('id-ID');
     }
